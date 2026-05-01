@@ -14,7 +14,7 @@ export default function FeedbackPanel({ question, selected }: { question: Questi
       {explicacaoGeral && (
         <div className="mt-3 rounded border border-slate-200 bg-slate-50 p-3">
           <p className="font-semibold">Explicação geral</p>
-          <p className="mt-1 text-sm">{explicacaoGeral}</p>
+          <p className="mt-1 whitespace-pre-line text-sm leading-relaxed">{explicacaoGeral}</p>
         </div>
       )}
 
@@ -23,7 +23,7 @@ export default function FeedbackPanel({ question, selected }: { question: Questi
         <ul className="mt-2 space-y-2">
           {(["A", "B", "C", "D"] as AlternativeKey[]).map((k) => (
             <li key={k}>
-              <span className="font-semibold">{k}:</span> {question.comentarios?.[k] ?? "Sem comentário."}
+              <span className="font-semibold">{k}:</span> <span className="whitespace-pre-line leading-relaxed">{question.comentarios?.[k] ?? "Sem comentário."}</span>
             </li>
           ))}
         </ul>
