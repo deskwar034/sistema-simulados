@@ -27,8 +27,11 @@ export type ExamState = {
   strikedAlternatives: Record<number, AlternativeKey[]>;
   answeredQuestions: Record<number, boolean>;
   lockedQuestions: Record<number, boolean>;
-  startTimestamp: number;
   durationMs: number;
+  remainingSeconds: number;
+  isTimerPaused: boolean;
+  lastTimerSyncAt: number;
+  startedAt: number;
   finished: boolean;
   finishedAt?: number;
   startedAtISO: string;
