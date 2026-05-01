@@ -35,4 +35,5 @@ export type ExamState = {
   finished: boolean;
   finishedAt?: number;
   startedAtISO: string;
+  approvalPopupShown?: boolean;
 };

@@ -15,6 +15,7 @@ function normalizeLoadedState(parsed: ExamState): ExamState {
     isTimerPaused: typeof parsed.isTimerPaused === "boolean" ? parsed.isTimerPaused : false,
     lastTimerSyncAt: parsed.lastTimerSyncAt ?? startedAt,
     startedAtISO: parsed.startedAtISO ?? new Date(startedAt).toISOString(),
+    approvalPopupShown: typeof parsed.approvalPopupShown === "boolean" ? parsed.approvalPopupShown : false,
   };
 }
 
@@ -64,5 +65,6 @@ export function createInitialState(totalQuestions: number): ExamState {
     startedAt: now,
     finished: false,
     startedAtISO: new Date(now).toISOString(),
+    approvalPopupShown: false,
   };
 }
