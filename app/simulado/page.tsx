@@ -22,6 +22,45 @@ export default function SimuladoPage() {
   const questionTopRef = useRef<HTMLDivElement | null>(null);
   const feedbackRef = useRef<HTMLDivElement | null>(null);
   const hasMountedRef = useRef(false);
+  const pendingFeedbackScrollRef = useRef(false);
+
+  const goToPreviousQuestion = useCallback(() => setState((s) => ({ ...s, currentQuestionIndex: Math.max(0, s.currentQuestionIndex - 1) })), []);
+  const goToNextQuestion = useCallback(() => setState((s) => ({ ...s, currentQuestionIndex: Math.min(questions.length - 1, s.currentQuestionIndex + 1) })), [questions.length]);
+
+
+  const selectAlt = useCallback((a: AlternativeKey) => setState((s) => {
+    if (s.lockedQuestions[s.currentQuestionIndex] && !s.finished) return s;
+    const strikes = (s.strikedAlternatives[s.currentQuestionIndex] || []).filter((x) => x !== a);
+    return {
+      ...s,
+      selectedAnswers: { ...s.selectedAnswers, [s.currentQuestionIndex]: a },
+      strikedAlternatives: { ...s.strikedAlternatives, [s.currentQuestionIndex]: strikes },
+    };
+  }), []);
+
+  const toggleStrike = useCallback((a: AlternativeKey) => setState((s) => {
+    if (s.lockedQuestions[s.currentQuestionIndex] && !s.finished) return s;
+    const curr = s.strikedAlternatives[s.currentQuestionIndex] || [];
+    const next = curr.includes(a) ? curr.filter((x) => x !== a) : [...curr, a];
+    return { ...s, strikedAlternatives: { ...s.strikedAlternatives, [s.currentQuestionIndex]: next } };
+  }), []);
+
+  const answerCurrentQuestion = useCallback(() => {
+    const index = state.currentQuestionIndex;
+
+    if (state.lockedQuestions[index] || state.finished) return;
+
+    const selected = state.selectedAnswers[index];
+    if (!selected) return;
+
+    pendingFeedbackScrollRef.current = true;
+
+    setState((s) => ({
+      ...s,
+      answeredQuestions: { ...s.answeredQuestions, [index]: true },
+      lockedQuestions: { ...s.lockedQuestions, [index]: true },
+    }));
+  }, [state.currentQuestionIndex, state.finished, state.lockedQuestions, state.selectedAnswers]);
 
   const goToPreviousQuestion = useCallback(() => setState((s) => ({ ...s, currentQuestionIndex: Math.max(0, s.currentQuestionIndex - 1) })), []);
   const goToNextQuestion = useCallback(() => setState((s) => ({ ...s, currentQuestionIndex: Math.min(questions.length - 1, s.currentQuestionIndex + 1) })), [questions.length]);
@@ -98,6 +137,24 @@ export default function SimuladoPage() {
     const y = questionTopRef.current.getBoundingClientRect().top + window.scrollY - 24;
     window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
   }, [state.currentQuestionIndex]);
+
+  useEffect(() => {
+    if (!pendingFeedbackScrollRef.current) return;
+
+    const index = state.currentQuestionIndex;
+    const isAnswered = state.answeredQuestions[index] || state.finished;
+    if (!isAnswered) return;
+
+    const timeout = window.setTimeout(() => {
+      if (!feedbackRef.current) return;
+
+      const y = feedbackRef.current.getBoundingClientRect().top + window.scrollY - 32;
+      window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+      pendingFeedbackScrollRef.current = false;
+    }, 50);
+
+    return () => window.clearTimeout(timeout);
+  }, [state.answeredQuestions, state.currentQuestionIndex, state.finished]);
 
   useEffect(() => {
     const scoreNow = calculateScore(questions, state.selectedAnswers, state.answeredQuestions);
