@@ -155,11 +155,26 @@ export function normalizeQuestions(input: unknown): Question[] { /* unchanged */
   return normalized;
 }
 
+export function calculateScore(questions: Question[], selectedAnswers: Record<number, AlternativeKey | null>, answeredQuestions: Record<number, boolean>) {
+  let correctCount = 0;
+  let totalAnswered = 0;
+
+  questions.forEach((q, index) => {
+    if (answeredQuestions[index]) {
+      totalAnswered += 1;
+      if (selectedAnswers[index] === q.correta) correctCount += 1;
+    }
+  });
+
+  const wrongCount = totalAnswered - correctCount;
+  const percentage = questions.length ? (correctCount / questions.length) * 100 : 0;
+
+  return { totalAnswered, correctCount, wrongCount, percentage };
+}
+
 export function getScore(questions: Question[], selectedAnswers: Record<number, AlternativeKey | null>, answered: Record<number, boolean>) {
-  let hits = 0;
-  let answeredCount = 0;
-  questions.forEach((q, index) => { if (answered[index]) { answeredCount += 1; if (selectedAnswers[index] === q.correta) hits += 1; } });
-  return { hits, answeredCount, errors: answeredCount - hits, percentage: questions.length ? (hits / questions.length) * 100 : 0 };
+  const score = calculateScore(questions, selectedAnswers, answered);
+  return { hits: score.correctCount, answeredCount: score.totalAnswered, errors: score.wrongCount, percentage: score.percentage };
 }
 
 export function formatMs(ms: number): string {

@@ -1,7 +1,7 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getScore } from "@/lib/examUtils";
+import { calculateScore, getScore } from "@/lib/examUtils";
 import { getQuestions } from "@/lib/getQuestions";
 import { createInitialState, loadState, saveState } from "@/lib/examStorage";
 import { AlternativeKey, ExamState } from "@/lib/types";
@@ -9,12 +9,16 @@ import QuestionNavigator from "@/components/QuestionNavigator";
 import QuestionCard from "@/components/QuestionCard";
 import Timer from "@/components/Timer";
 import ProgressSummary from "@/components/ProgressSummary";
+import ApprovalMilestoneModal from "@/components/ApprovalMilestoneModal";
 
 export default function SimuladoPage() {
   const router = useRouter();
   const questions = useMemo(() => getQuestions(), []);
   const [state, setState] = useState<ExamState>(() => createInitialState(Math.max(questions.length, 1)));
   const [error, setError] = useState("");
+  const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const questionTopRef = useRef<HTMLDivElement | null>(null);
+  const hasMountedRef = useRef(false);
 
   useEffect(() => {
     if (!questions.length) {
@@ -61,6 +65,27 @@ export default function SimuladoPage() {
       if (first >= 0) setState((s) => ({ ...s, currentQuestionIndex: first }));
     }
   }, [questions, state.answeredQuestions, state.selectedAnswers]);
+
+
+  useEffect(() => {
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      return;
+    }
+
+    if (!questionTopRef.current) return;
+
+    const y = questionTopRef.current.getBoundingClientRect().top + window.scrollY - 24;
+    window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+  }, [state.currentQuestionIndex]);
+
+  useEffect(() => {
+    const scoreNow = calculateScore(questions, state.selectedAnswers, state.answeredQuestions);
+    if (scoreNow.correctCount >= 40 && !state.approvalPopupShown) {
+      setShowApprovalModal(true);
+      setState((s) => (s.approvalPopupShown ? s : { ...s, approvalPopupShown: true }));
+    }
+  }, [questions, state.answeredQuestions, state.approvalPopupShown, state.selectedAnswers]);
 
   if (error) return <main className="p-6">{error}</main>;
   const q = questions[state.currentQuestionIndex];
@@ -131,7 +156,21 @@ export default function SimuladoPage() {
             onGo={(i: number) => setState((s) => ({ ...s, currentQuestionIndex: i }))}
           />
         </aside>
-        <section className="order-1 lg:order-2">
+        <section
+          ref={questionTopRef}
+          className="order-1 lg:order-2"
+          onKeyDown={(event) => {
+            if (event.key !== "Enter") return;
+            if (state.lockedQuestions[state.currentQuestionIndex] || state.finished) return;
+            if (!state.selectedAnswers[state.currentQuestionIndex]) return;
+            event.preventDefault();
+            setState((st) => ({
+              ...st,
+              answeredQuestions: { ...st.answeredQuestions, [st.currentQuestionIndex]: true },
+              lockedQuestions: { ...st.lockedQuestions, [st.currentQuestionIndex]: true },
+            }));
+          }}
+        >
           <QuestionCard
             question={q}
             index={state.currentQuestionIndex}
@@ -142,7 +181,11 @@ export default function SimuladoPage() {
             finished={state.finished}
             onSelect={selectAlt}
             onToggleStrike={toggleStrike}
-            onAnswer={() => setState((s) => ({ ...s, answeredQuestions: { ...s.answeredQuestions, [s.currentQuestionIndex]: true }, lockedQuestions: { ...s.lockedQuestions, [s.currentQuestionIndex]: true } }))}
+            onAnswer={() => setState((s) => {
+              const selected = s.selectedAnswers[s.currentQuestionIndex];
+              if (!selected) return s;
+              return { ...s, answeredQuestions: { ...s.answeredQuestions, [s.currentQuestionIndex]: true }, lockedQuestions: { ...s.lockedQuestions, [s.currentQuestionIndex]: true } };
+            })}
             onUnlock={() => setState((s) => ({ ...s, lockedQuestions: { ...s.lockedQuestions, [s.currentQuestionIndex]: false } }))}
           />
           <div className="mt-4 flex flex-wrap gap-2">
@@ -152,6 +195,7 @@ export default function SimuladoPage() {
           </div>
         </section>
       </div>
+      <ApprovalMilestoneModal open={showApprovalModal} onClose={() => setShowApprovalModal(false)} />
     </div></main>
   );
 }
