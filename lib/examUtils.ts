@@ -82,14 +82,11 @@ function normalizeComments(obj: UnknownRecord): Partial<Record<AlternativeKey, s
       continue;
     }
 
-    if (fromCommented) {
-      normalized[key] = fromCommented;
-    }
+    if (fromCommented) normalized[key] = fromCommented;
   }
 
   return Object.keys(normalized).length > 0 ? normalized : undefined;
 }
-
 
 function normalizeGeneralExplanation(obj: UnknownRecord): string | undefined {
   const fromCommented = isRecord(obj.gabarito_comentado)
@@ -111,76 +108,57 @@ function parseCorrectAlternative(raw: unknown, questionId: number): AlternativeK
     console.warn("[normalizeQuestions] Não foi possível detectar alternativa correta.", { questionId, raw });
     return null;
   }
-
   const upper = raw.toUpperCase();
   const matched = upper.match(/[ABCD]/);
   if (!matched) {
     console.warn("[normalizeQuestions] Não foi possível detectar alternativa correta.", { questionId, raw });
     return null;
   }
-
   return matched[0] as AlternativeKey;
 }
 
-export function normalizeQuestions(input: unknown): Question[] {
-  const sourceQuestions = extractRawQuestions(input);
+export type QuestionStatus = "current" | "correct" | "incorrect" | "selected" | "crossed" | "unanswered";
 
+export function getQuestionStatus(
+  question: Question,
+  answer: AlternativeKey | null,
+  isAnswered: boolean,
+  crossedAlternatives: AlternativeKey[] = [],
+  isCurrent = false,
+): QuestionStatus {
+  if (isCurrent) return "current";
+  if (isAnswered) return answer === question.correta ? "correct" : "incorrect";
+  if (answer) return "selected";
+  if (crossedAlternatives.length > 0) return "crossed";
+  return "unanswered";
+}
+
+export function normalizeQuestions(input: unknown): Question[] { /* unchanged */
+  const sourceQuestions = extractRawQuestions(input);
   const normalized = sourceQuestions
     .map((item, index) => {
       if (!isRecord(item)) return null;
-
       const rawId = item.id ?? item.numero ?? item.number;
       const id = Number(rawId);
       const enunciado = toNonEmptyString(item.enunciado ?? item.question ?? item.statement ?? item.texto) ?? "";
       const alternativas = normalizeAlternatives(item.alternativas ?? item.alternatives ?? item.opcoes ?? item.options);
-      const correta = parseCorrectAlternative(
-        item.correta ?? item.correctAnswer ?? item.resposta_correta ?? item.answer ?? item.gabarito,
-        Number.isFinite(id) ? id : index + 1,
-      );
-
-      const question: Question = {
-        id,
-        disciplina: toNonEmptyString(item.disciplina ?? item.subject),
-        tema: toNonEmptyString(item.tema ?? item.topic),
-        enunciado,
-        alternativas,
-        correta: correta ?? "A",
-        comentarios: normalizeComments(item),
-        explicacaoGeral: normalizeGeneralExplanation(item),
-        explicacao: toNonEmptyString(item.explicacao ?? item.explanation),
+      const correta = parseCorrectAlternative(item.correta ?? item.correctAnswer ?? item.resposta_correta ?? item.answer ?? item.gabarito, Number.isFinite(id) ? id : index + 1);
+      return {
+        id, disciplina: toNonEmptyString(item.disciplina ?? item.subject), tema: toNonEmptyString(item.tema ?? item.topic), enunciado, alternativas,
+        correta: correta ?? "A", comentarios: normalizeComments(item), explicacaoGeral: normalizeGeneralExplanation(item), explicacao: toNonEmptyString(item.explicacao ?? item.explanation),
         pagina_simulado: typeof item.pagina_simulado === "number" ? item.pagina_simulado : undefined,
         pagina_gabarito: typeof item.pagina_gabarito === "number" ? item.pagina_gabarito : undefined,
-      };
-
-      return question;
+      } as Question;
     })
-    .filter((q): q is Question => {
-      if (!q) return false;
-      const hasValidId = Number.isFinite(q.id);
-      const hasStatement = q.enunciado.trim().length > 0;
-      const hasAtLeastOneAlternative = ALT_KEYS.some((key) => q.alternativas[key].trim().length > 0);
-      return hasValidId && hasStatement && hasAtLeastOneAlternative;
-    });
-
-  console.error("[normalizeQuestions] Resumo da normalização.", {
-    inputType: Array.isArray(input) ? "array" : typeof input,
-    rootKeys: isRecord(input) ? Object.keys(input) : [],
-    detectedCountBeforeNormalization: sourceQuestions.length,
-    normalizedCount: normalized.length,
-  });
-
+    .filter((q): q is Question => !!q && Number.isFinite(q.id) && q.enunciado.trim().length > 0 && ALT_KEYS.some((key) => q.alternativas[key].trim().length > 0));
+  console.error("[normalizeQuestions] Resumo da normalização.", { inputType: Array.isArray(input) ? "array" : typeof input, rootKeys: isRecord(input) ? Object.keys(input) : [], detectedCountBeforeNormalization: sourceQuestions.length, normalizedCount: normalized.length });
   return normalized;
 }
 
 export function getScore(questions: Question[], selectedAnswers: Record<number, AlternativeKey | null>, answered: Record<number, boolean>) {
   let hits = 0;
   let answeredCount = 0;
-  questions.forEach((q, index) => {
-    if (answered[index]) {
-      answeredCount += 1;
-      if (selectedAnswers[index] === q.correta) hits += 1;
-    }
-  });
+  questions.forEach((q, index) => { if (answered[index]) { answeredCount += 1; if (selectedAnswers[index] === q.correta) hits += 1; } });
   return { hits, answeredCount, errors: answeredCount - hits, percentage: questions.length ? (hits / questions.length) * 100 : 0 };
 }
 

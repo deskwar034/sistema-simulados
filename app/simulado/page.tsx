@@ -96,8 +96,15 @@ export default function SimuladoPage() {
     });
 
   return (
-    <main className="mx-auto max-w-7xl p-4">
-      <div className="mb-4 flex items-center justify-between gap-4">
+    <main className="min-h-screen bg-gradient-to-b from-slate-50 to-white"><div className="mx-auto max-w-7xl p-4">
+      <div className="sticky top-2 z-10 mb-4 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm backdrop-blur"><div className="mb-2 flex items-center justify-between"><h1 className="text-lg font-semibold text-slate-900">Simulado OAB 46</h1><button className="rounded-xl bg-slate-900 px-3 py-2 text-sm text-white" onClick={() => {
+              const unanswered = questions.length - score.answeredCount;
+              const ok = window.confirm(unanswered ? `Existem ${unanswered} não respondidas. Finalizar?` : "Finalizar simulado?");
+              if (ok) {
+                setState((s) => ({ ...s, finished: true, finishedAt: Date.now() }));
+                router.push("/resultado");
+              }
+            }}>Finalizar</button></div><div className="flex items-center justify-between gap-4">
         <Timer
           remainingSeconds={state.remainingSeconds}
           isPaused={state.isTimerPaused || state.finished}
@@ -109,23 +116,22 @@ export default function SimuladoPage() {
           }}
         />
         <ProgressSummary total={questions.length} answered={score.answeredCount} hits={score.hits} errors={score.errors} />
-      </div>
+      </div></div>
       {state.isTimerPaused && !state.finished ? (
         <div className="mb-3 rounded border border-amber-300 bg-amber-100 p-2 text-amber-800">Tempo pausado. Você pode continuar navegando e lendo as questões.</div>
       ) : null}
-      <div className="grid gap-4 lg:grid-cols-[280px_1fr]">
-        <aside>
+      <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
+        <aside className="order-2 lg:order-1">
           <QuestionNavigator
             questions={questions}
             current={state.currentQuestionIndex}
             answered={state.answeredQuestions}
             selected={state.selectedAnswers}
             striked={state.strikedAlternatives}
-            finished={state.finished}
             onGo={(i: number) => setState((s) => ({ ...s, currentQuestionIndex: i }))}
           />
         </aside>
-        <section>
+        <section className="order-1 lg:order-2">
           <QuestionCard
             question={q}
             index={state.currentQuestionIndex}
@@ -142,17 +148,10 @@ export default function SimuladoPage() {
           <div className="mt-4 flex flex-wrap gap-2">
             <button className="rounded border px-3 py-2" onClick={() => setState((s) => ({ ...s, currentQuestionIndex: Math.max(0, s.currentQuestionIndex - 1) }))}>Anterior</button>
             <button className="rounded border px-3 py-2" onClick={() => setState((s) => ({ ...s, currentQuestionIndex: Math.min(questions.length - 1, s.currentQuestionIndex + 1) }))}>Próxima</button>
-            <button className="rounded bg-slate-800 px-3 py-2 text-white" onClick={() => {
-              const unanswered = questions.length - score.answeredCount;
-              const ok = window.confirm(unanswered ? `Existem ${unanswered} não respondidas. Finalizar?` : "Finalizar simulado?");
-              if (ok) {
-                setState((s) => ({ ...s, finished: true, finishedAt: Date.now() }));
-                router.push("/resultado");
-              }
-            }}>Finalizar simulado</button>
+
           </div>
         </section>
       </div>
-    </main>
+    </div></main>
   );
 }
