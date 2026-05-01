@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { calculateScore, getScore } from "@/lib/examUtils";
 import { getQuestions } from "@/lib/getQuestions";
@@ -11,6 +11,8 @@ import Timer from "@/components/Timer";
 import ProgressSummary from "@/components/ProgressSummary";
 import ApprovalMilestoneModal from "@/components/ApprovalMilestoneModal";
 
+const ALL_KEYS: AlternativeKey[] = ["A", "B", "C", "D", "E"];
+
 export default function SimuladoPage() {
   const router = useRouter();
   const questions = useMemo(() => getQuestions(), []);
@@ -18,44 +20,67 @@ export default function SimuladoPage() {
   const [error, setError] = useState("");
   const [showApprovalModal, setShowApprovalModal] = useState(false);
   const questionTopRef = useRef<HTMLDivElement | null>(null);
+  const feedbackRef = useRef<HTMLDivElement | null>(null);
   const hasMountedRef = useRef(false);
+  const pendingFeedbackScrollRef = useRef(false);
+
+  const goToPreviousQuestion = useCallback(() => setState((s) => ({ ...s, currentQuestionIndex: Math.max(0, s.currentQuestionIndex - 1) })), []);
+  const goToNextQuestion = useCallback(() => setState((s) => ({ ...s, currentQuestionIndex: Math.min(questions.length - 1, s.currentQuestionIndex + 1) })), [questions.length]);
+
+
+  const selectAlt = useCallback((a: AlternativeKey) => setState((s) => {
+    if (s.lockedQuestions[s.currentQuestionIndex] && !s.finished) return s;
+    const strikes = (s.strikedAlternatives[s.currentQuestionIndex] || []).filter((x) => x !== a);
+    return {
+      ...s,
+      selectedAnswers: { ...s.selectedAnswers, [s.currentQuestionIndex]: a },
+      strikedAlternatives: { ...s.strikedAlternatives, [s.currentQuestionIndex]: strikes },
+    };
+  }), []);
+
+  const toggleStrike = useCallback((a: AlternativeKey) => setState((s) => {
+    if (s.lockedQuestions[s.currentQuestionIndex] && !s.finished) return s;
+    const curr = s.strikedAlternatives[s.currentQuestionIndex] || [];
+    const next = curr.includes(a) ? curr.filter((x) => x !== a) : [...curr, a];
+    return { ...s, strikedAlternatives: { ...s.strikedAlternatives, [s.currentQuestionIndex]: next } };
+  }), []);
+
+  const answerCurrentQuestion = useCallback(() => {
+    const index = state.currentQuestionIndex;
+
+    if (state.lockedQuestions[index] || state.finished) return;
+
+    const selected = state.selectedAnswers[index];
+    if (!selected) return;
+
+    pendingFeedbackScrollRef.current = true;
+
+    setState((s) => ({
+      ...s,
+      answeredQuestions: { ...s.answeredQuestions, [index]: true },
+      lockedQuestions: { ...s.lockedQuestions, [index]: true },
+    }));
+  }, [state.currentQuestionIndex, state.finished, state.lockedQuestions, state.selectedAnswers]);
 
   useEffect(() => {
     if (!questions.length) {
       setError("Não foi possível carregar questões. Verifique se data/questions.json possui a chave questoes ou é um array de questões.");
       return;
     }
-
     const loaded = loadState();
     const baseState = loaded ?? createInitialState(questions.length);
-
-    if (baseState.finished) {
+    if (baseState.finished || baseState.isTimerPaused) {
       setState(baseState);
       return;
     }
-
-    if (baseState.isTimerPaused) {
-      setState(baseState);
-      return;
-    }
-
     const elapsed = Math.floor((Date.now() - baseState.lastTimerSyncAt) / 1000);
     const adjusted = Math.max(0, baseState.remainingSeconds - Math.max(0, elapsed));
-    const next = {
-      ...baseState,
-      remainingSeconds: adjusted,
-      lastTimerSyncAt: Date.now(),
-      finished: adjusted <= 0 ? true : baseState.finished,
-      finishedAt: adjusted <= 0 ? Date.now() : baseState.finishedAt,
-    };
-
+    const next = { ...baseState, remainingSeconds: adjusted, lastTimerSyncAt: Date.now(), finished: adjusted <= 0 ? true : baseState.finished, finishedAt: adjusted <= 0 ? Date.now() : baseState.finishedAt };
     setState(next);
     if (next.finished) router.push("/resultado");
   }, [questions.length, router]);
 
-  useEffect(() => {
-    saveState(state);
-  }, [state]);
+  useEffect(() => { saveState(state); }, [state]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -66,18 +91,30 @@ export default function SimuladoPage() {
     }
   }, [questions, state.answeredQuestions, state.selectedAnswers]);
 
-
   useEffect(() => {
-    if (!hasMountedRef.current) {
-      hasMountedRef.current = true;
-      return;
-    }
-
+    if (!hasMountedRef.current) { hasMountedRef.current = true; return; }
     if (!questionTopRef.current) return;
-
     const y = questionTopRef.current.getBoundingClientRect().top + window.scrollY - 24;
     window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
   }, [state.currentQuestionIndex]);
+
+  useEffect(() => {
+    if (!pendingFeedbackScrollRef.current) return;
+
+    const index = state.currentQuestionIndex;
+    const isAnswered = state.answeredQuestions[index] || state.finished;
+    if (!isAnswered) return;
+
+    const timeout = window.setTimeout(() => {
+      if (!feedbackRef.current) return;
+
+      const y = feedbackRef.current.getBoundingClientRect().top + window.scrollY - 32;
+      window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+      pendingFeedbackScrollRef.current = false;
+    }, 50);
+
+    return () => window.clearTimeout(timeout);
+  }, [state.answeredQuestions, state.currentQuestionIndex, state.finished]);
 
   useEffect(() => {
     const scoreNow = calculateScore(questions, state.selectedAnswers, state.answeredQuestions);
@@ -87,38 +124,41 @@ export default function SimuladoPage() {
     }
   }, [questions, state.answeredQuestions, state.approvalPopupShown, state.selectedAnswers]);
 
-  if (error) return <main className="p-6">{error}</main>;
   const q = questions[state.currentQuestionIndex];
+  useEffect(() => {
+    if (!q) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable) return;
+      if (event.key === "ArrowLeft") return event.preventDefault(), goToNextQuestion();
+      if (event.key === "ArrowRight") return event.preventDefault(), goToPreviousQuestion();
+      if (event.key === "Enter") return event.preventDefault(), answerCurrentQuestion();
+      const key = event.key.toUpperCase() as AlternativeKey;
+      if (!ALL_KEYS.includes(key)) return;
+      if (state.lockedQuestions[state.currentQuestionIndex] || state.finished) return;
+      if (!q.alternativas[key]) return;
+      const selected = state.selectedAnswers[state.currentQuestionIndex];
+      const strikes = state.strikedAlternatives[state.currentQuestionIndex] || [];
+      event.preventDefault();
+      if (selected === key) {
+        setState((s) => ({ ...s, selectedAnswers: { ...s.selectedAnswers, [s.currentQuestionIndex]: null }, strikedAlternatives: { ...s.strikedAlternatives, [s.currentQuestionIndex]: [...(s.strikedAlternatives[s.currentQuestionIndex] || []), key] } }));
+        return;
+      }
+      if (strikes.includes(key)) return toggleStrike(key);
+      selectAlt(key);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [answerCurrentQuestion, goToNextQuestion, goToPreviousQuestion, q, selectAlt, state, toggleStrike]);
+
+  if (error) return <main className="p-6">{error}</main>;
   if (!q) return null;
 
   const score = getScore(questions, state.selectedAnswers, state.answeredQuestions);
-
   const handleTimeUp = () => {
-    setState((s) => {
-      if (s.finished) return s;
-      return { ...s, remainingSeconds: 0, finished: true, finishedAt: Date.now(), isTimerPaused: false, lastTimerSyncAt: Date.now() };
-    });
+    setState((s) => (s.finished ? s : { ...s, remainingSeconds: 0, finished: true, finishedAt: Date.now(), isTimerPaused: false, lastTimerSyncAt: Date.now() }));
     router.push("/resultado");
   };
-
-  const selectAlt = (a: AlternativeKey) =>
-    setState((s) => {
-      if (s.lockedQuestions[s.currentQuestionIndex] && !s.finished) return s;
-      const strikes = (s.strikedAlternatives[s.currentQuestionIndex] || []).filter((x) => x !== a);
-      return {
-        ...s,
-        selectedAnswers: { ...s.selectedAnswers, [s.currentQuestionIndex]: a },
-        strikedAlternatives: { ...s.strikedAlternatives, [s.currentQuestionIndex]: strikes },
-      };
-    });
-
-  const toggleStrike = (a: AlternativeKey) =>
-    setState((s) => {
-      if (s.lockedQuestions[s.currentQuestionIndex] && !s.finished) return s;
-      const curr = s.strikedAlternatives[s.currentQuestionIndex] || [];
-      const next = curr.includes(a) ? curr.filter((x) => x !== a) : [...curr, a];
-      return { ...s, strikedAlternatives: { ...s.strikedAlternatives, [s.currentQuestionIndex]: next } };
-    });
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-50 to-white"><div className="mx-auto max-w-7xl p-4">
@@ -130,68 +170,19 @@ export default function SimuladoPage() {
                 router.push("/resultado");
               }
             }}>Finalizar simulado</button></div><div className="grid gap-3 md:grid-cols-2">
-        <Timer
-          remainingSeconds={state.remainingSeconds}
-          isPaused={state.isTimerPaused || state.finished}
-          onPause={() => setState((s) => ({ ...s, isTimerPaused: true, lastTimerSyncAt: Date.now() }))}
-          onResume={() => setState((s) => ({ ...s, isTimerPaused: false, lastTimerSyncAt: Date.now() }))}
-          onTimeUp={handleTimeUp}
-          onTickPersist={(nextRemainingSeconds, syncAt) => {
+        <Timer remainingSeconds={state.remainingSeconds} isPaused={state.isTimerPaused || state.finished} onPause={() => setState((s) => ({ ...s, isTimerPaused: true, lastTimerSyncAt: Date.now() }))} onResume={() => setState((s) => ({ ...s, isTimerPaused: false, lastTimerSyncAt: Date.now() }))} onTimeUp={handleTimeUp} onTickPersist={(nextRemainingSeconds, syncAt) => {
             setState((s) => (s.finished || s.isTimerPaused ? s : { ...s, remainingSeconds: nextRemainingSeconds, lastTimerSyncAt: syncAt }));
-          }}
-        />
+          }} />
         <ProgressSummary total={questions.length} answered={score.answeredCount} hits={score.hits} errors={score.errors} />
       </div></div>
-      {state.isTimerPaused && !state.finished ? (
-        <div className="mb-3 rounded border border-amber-300 bg-amber-100 p-2 text-amber-800">Tempo pausado. Você pode continuar navegando e lendo as questões.</div>
-      ) : null}
-      <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
-        <aside className="order-2 lg:order-1">
-          <QuestionNavigator
-            questions={questions}
-            current={state.currentQuestionIndex}
-            answered={state.answeredQuestions}
-            selected={state.selectedAnswers}
-            striked={state.strikedAlternatives}
-            onGo={(i: number) => setState((s) => ({ ...s, currentQuestionIndex: i }))}
-          />
-        </aside>
-        <section
-          ref={questionTopRef}
-          className="order-1 lg:order-2"
-          onKeyDown={(event) => {
-            if (event.key !== "Enter") return;
-            if (state.lockedQuestions[state.currentQuestionIndex] || state.finished) return;
-            if (!state.selectedAnswers[state.currentQuestionIndex]) return;
-            event.preventDefault();
-            setState((st) => ({
-              ...st,
-              answeredQuestions: { ...st.answeredQuestions, [st.currentQuestionIndex]: true },
-              lockedQuestions: { ...st.lockedQuestions, [st.currentQuestionIndex]: true },
-            }));
-          }}
-        >
-          <QuestionCard
-            question={q}
-            index={state.currentQuestionIndex}
-            selected={state.selectedAnswers[state.currentQuestionIndex]}
-            striked={state.strikedAlternatives[state.currentQuestionIndex] || []}
-            answered={state.answeredQuestions[state.currentQuestionIndex] || state.finished}
-            locked={state.lockedQuestions[state.currentQuestionIndex]}
-            finished={state.finished}
-            onSelect={selectAlt}
-            onToggleStrike={toggleStrike}
-            onAnswer={() => setState((s) => {
-              const selected = s.selectedAnswers[s.currentQuestionIndex];
-              if (!selected) return s;
-              return { ...s, answeredQuestions: { ...s.answeredQuestions, [s.currentQuestionIndex]: true }, lockedQuestions: { ...s.lockedQuestions, [s.currentQuestionIndex]: true } };
-            })}
-            onUnlock={() => setState((s) => ({ ...s, lockedQuestions: { ...s.lockedQuestions, [s.currentQuestionIndex]: false } }))}
-          />
+      {state.isTimerPaused && !state.finished ? <div className="mb-3 rounded border border-amber-300 bg-amber-100 p-2 text-amber-800">Tempo pausado. Você pode continuar navegando e lendo as questões.</div> : null}
+      <div className="grid gap-4 lg:grid-cols-[300px_1fr]"><aside className="order-2 lg:order-1"><QuestionNavigator questions={questions} current={state.currentQuestionIndex} answered={state.answeredQuestions} selected={state.selectedAnswers} striked={state.strikedAlternatives} onGo={(i: number) => setState((s) => ({ ...s, currentQuestionIndex: i }))} /></aside>
+        <section ref={questionTopRef} className="order-1 lg:order-2">
+          <QuestionCard question={q} index={state.currentQuestionIndex} selected={state.selectedAnswers[state.currentQuestionIndex]} striked={state.strikedAlternatives[state.currentQuestionIndex] || []} answered={state.answeredQuestions[state.currentQuestionIndex] || state.finished} locked={state.lockedQuestions[state.currentQuestionIndex]} finished={state.finished} feedbackRef={feedbackRef} onSelect={selectAlt} onToggleStrike={toggleStrike} onAnswer={answerCurrentQuestion} onUnlock={() => setState((s) => ({ ...s, lockedQuestions: { ...s.lockedQuestions, [s.currentQuestionIndex]: false } }))} />
+          <p className="mt-3 text-xs text-slate-500">Atalhos: A/B/C/D/E selecionam, Enter responde, ← próxima, → anterior.</p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <button className="rounded border px-3 py-2" onClick={() => setState((s) => ({ ...s, currentQuestionIndex: Math.max(0, s.currentQuestionIndex - 1) }))}>Anterior</button>
-            <button className="rounded border px-3 py-2" onClick={() => setState((s) => ({ ...s, currentQuestionIndex: Math.min(questions.length - 1, s.currentQuestionIndex + 1) }))}>Próxima</button>
-
+            <button className="rounded border px-3 py-2" onClick={goToPreviousQuestion}>Anterior</button>
+            <button className="rounded border px-3 py-2" onClick={goToNextQuestion}>Próxima</button>
           </div>
         </section>
       </div>
