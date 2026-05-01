@@ -62,46 +62,6 @@ export default function SimuladoPage() {
     }));
   }, [state.currentQuestionIndex, state.finished, state.lockedQuestions, state.selectedAnswers]);
 
-  const goToPreviousQuestion = useCallback(() => setState((s) => ({ ...s, currentQuestionIndex: Math.max(0, s.currentQuestionIndex - 1) })), []);
-  const goToNextQuestion = useCallback(() => setState((s) => ({ ...s, currentQuestionIndex: Math.min(questions.length - 1, s.currentQuestionIndex + 1) })), [questions.length]);
-
-  const scrollToFeedback = useCallback(() => {
-    requestAnimationFrame(() => {
-      if (!feedbackRef.current) return;
-      const y = feedbackRef.current.getBoundingClientRect().top + window.scrollY - 24;
-      window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
-    });
-  }, []);
-
-  const selectAlt = useCallback((a: AlternativeKey) => setState((s) => {
-    if (s.lockedQuestions[s.currentQuestionIndex] && !s.finished) return s;
-    const strikes = (s.strikedAlternatives[s.currentQuestionIndex] || []).filter((x) => x !== a);
-    return {
-      ...s,
-      selectedAnswers: { ...s.selectedAnswers, [s.currentQuestionIndex]: a },
-      strikedAlternatives: { ...s.strikedAlternatives, [s.currentQuestionIndex]: strikes },
-    };
-  }), []);
-
-  const toggleStrike = useCallback((a: AlternativeKey) => setState((s) => {
-    if (s.lockedQuestions[s.currentQuestionIndex] && !s.finished) return s;
-    const curr = s.strikedAlternatives[s.currentQuestionIndex] || [];
-    const next = curr.includes(a) ? curr.filter((x) => x !== a) : [...curr, a];
-    return { ...s, strikedAlternatives: { ...s.strikedAlternatives, [s.currentQuestionIndex]: next } };
-  }), []);
-
-  const answerCurrentQuestion = useCallback(() => {
-    let didAnswer = false;
-    setState((s) => {
-      if (s.lockedQuestions[s.currentQuestionIndex] || s.finished) return s;
-      const selected = s.selectedAnswers[s.currentQuestionIndex];
-      if (!selected) return s;
-      didAnswer = true;
-      return { ...s, answeredQuestions: { ...s.answeredQuestions, [s.currentQuestionIndex]: true }, lockedQuestions: { ...s.lockedQuestions, [s.currentQuestionIndex]: true } };
-    });
-    if (didAnswer) scrollToFeedback();
-  }, [scrollToFeedback]);
-
   useEffect(() => {
     if (!questions.length) {
       setError("Não foi possível carregar questões. Verifique se data/questions.json possui a chave questoes ou é um array de questões.");
@@ -170,8 +130,8 @@ export default function SimuladoPage() {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable) return;
-      if (event.key === "ArrowLeft") return event.preventDefault(), goToNextQuestion();
-      if (event.key === "ArrowRight") return event.preventDefault(), goToPreviousQuestion();
+      if (event.key === "ArrowLeft") return event.preventDefault(), goToPreviousQuestion();
+      if (event.key === "ArrowRight") return event.preventDefault(), goToNextQuestion();
       if (event.key === "Enter") return event.preventDefault(), answerCurrentQuestion();
       const key = event.key.toUpperCase() as AlternativeKey;
       if (!ALL_KEYS.includes(key)) return;
@@ -219,7 +179,7 @@ export default function SimuladoPage() {
       <div className="grid gap-4 lg:grid-cols-[300px_1fr]"><aside className="order-2 lg:order-1"><QuestionNavigator questions={questions} current={state.currentQuestionIndex} answered={state.answeredQuestions} selected={state.selectedAnswers} striked={state.strikedAlternatives} onGo={(i: number) => setState((s) => ({ ...s, currentQuestionIndex: i }))} /></aside>
         <section ref={questionTopRef} className="order-1 lg:order-2">
           <QuestionCard question={q} index={state.currentQuestionIndex} selected={state.selectedAnswers[state.currentQuestionIndex]} striked={state.strikedAlternatives[state.currentQuestionIndex] || []} answered={state.answeredQuestions[state.currentQuestionIndex] || state.finished} locked={state.lockedQuestions[state.currentQuestionIndex]} finished={state.finished} feedbackRef={feedbackRef} onSelect={selectAlt} onToggleStrike={toggleStrike} onAnswer={answerCurrentQuestion} onUnlock={() => setState((s) => ({ ...s, lockedQuestions: { ...s.lockedQuestions, [s.currentQuestionIndex]: false } }))} />
-          <p className="mt-3 text-xs text-slate-500">Atalhos: A/B/C/D/E selecionam, Enter responde, ← próxima, → anterior.</p>
+          <p className="mt-3 text-xs text-slate-500">Atalhos: A/B/C/D/E selecionam, Enter responde, ← anterior, → próxima.</p>
           <div className="mt-4 flex flex-wrap gap-2">
             <button className="rounded border px-3 py-2" onClick={goToPreviousQuestion}>Anterior</button>
             <button className="rounded border px-3 py-2" onClick={goToNextQuestion}>Próxima</button>
