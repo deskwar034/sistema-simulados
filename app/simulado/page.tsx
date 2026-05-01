@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import rawQuestions from "@/data/questions.json";
-import { normalizeQuestions, getScore } from "@/lib/examUtils";
+import { getScore } from "@/lib/examUtils";
+import { getQuestions } from "@/lib/getQuestions";
 import { createInitialState, loadState, saveState } from "@/lib/examStorage";
 import { AlternativeKey } from "@/lib/types";
 import QuestionNavigator from "@/components/QuestionNavigator";
@@ -12,10 +12,10 @@ import ProgressSummary from "@/components/ProgressSummary";
 
 export default function SimuladoPage(){
 const router=useRouter();
-const questions=useMemo(()=>normalizeQuestions(rawQuestions),[]);
+const questions=useMemo(()=>getQuestions(),[]);
 const [state,setState]=useState(()=>createInitialState(Math.max(questions.length,1)));
 const [error,setError]=useState("");
-useEffect(()=>{if(!questions.length){setError("Não foi possível carregar questões.");return;} const loaded=loadState(); setState(loaded ?? createInitialState(questions.length));},[questions.length]);
+useEffect(()=>{if(!questions.length){setError("Não foi possível carregar questões. Verifique se data/questions.json possui a chave questoes ou é um array de questões.");return;} const loaded=loadState(); setState(loaded ?? createInitialState(questions.length));},[questions.length]);
 useEffect(()=>{saveState(state);},[state]);
 useEffect(()=>{if(typeof window==="undefined") return; const review=new URLSearchParams(window.location.search).get("review");if(review==="wrong"&&questions.length){const first=questions.findIndex((q,i)=>state.answeredQuestions[i]&&state.selectedAnswers[i]!==q.correta);if(first>=0)setState(s=>({...s,currentQuestionIndex:first}));}},[questions,state.answeredQuestions,state.selectedAnswers]);
 useEffect(()=>{const id=setInterval(()=>{setState(prev=>{if(prev.finished) return prev; const remaining=prev.durationMs-(Date.now()-prev.startTimestamp); if(remaining<=0){router.push('/resultado'); return {...prev,finished:true,finishedAt:Date.now()};} return prev;});},1000);return ()=>clearInterval(id);},[router]);

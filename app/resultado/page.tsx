@@ -1,11 +1,11 @@
 "use client";
 import Link from "next/link";
-import rawQuestions from "@/data/questions.json";
-import { normalizeQuestions, getScore, formatMs } from "@/lib/examUtils";
+import { getScore, formatMs } from "@/lib/examUtils";
+import { getQuestions } from "@/lib/getQuestions";
 import { clearState, loadState } from "@/lib/examStorage";
 
 export default function ResultadoPage(){
-  const questions=normalizeQuestions(rawQuestions);
+  const questions=getQuestions();
   const state=typeof window!=="undefined"?loadState():null;
   if(!state) return <main className="p-6">Sem dados de simulado.</main>;
   const score=getScore(questions,state.selectedAnswers,state.answeredQuestions);
