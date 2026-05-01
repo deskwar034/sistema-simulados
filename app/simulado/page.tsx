@@ -97,14 +97,14 @@ export default function SimuladoPage() {
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-50 to-white"><div className="mx-auto max-w-7xl p-4">
-      <div className="sticky top-2 z-10 mb-4 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm backdrop-blur"><div className="mb-2 flex items-center justify-between"><h1 className="text-lg font-semibold text-slate-900">Simulado OAB 46</h1><button className="rounded-xl bg-slate-900 px-3 py-2 text-sm text-white" onClick={() => {
+      <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><div className="mb-3 flex flex-wrap items-center justify-between gap-3"><h1 className="text-lg font-semibold text-slate-900">Simulado OAB 46</h1><button className="rounded-xl bg-slate-900 px-3 py-2 text-sm text-white" onClick={() => {
               const unanswered = questions.length - score.answeredCount;
               const ok = window.confirm(unanswered ? `Existem ${unanswered} não respondidas. Finalizar?` : "Finalizar simulado?");
               if (ok) {
                 setState((s) => ({ ...s, finished: true, finishedAt: Date.now() }));
                 router.push("/resultado");
               }
-            }}>Finalizar</button></div><div className="flex items-center justify-between gap-4">
+            }}>Finalizar simulado</button></div><div className="grid gap-3 md:grid-cols-2">
         <Timer
           remainingSeconds={state.remainingSeconds}
           isPaused={state.isTimerPaused || state.finished}
