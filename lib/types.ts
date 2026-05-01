@@ -9,6 +9,14 @@ export type Question = {
   correta: AlternativeKey;
   comentarios?: Partial<Record<AlternativeKey, string>>;
   explicacao?: string;
+  explicacaoGeral?: string;
+  gabarito_comentado?: {
+    explicacao_geral?: string;
+    alternativas?: Record<string, {
+      status?: string;
+      comentario?: string;
+    }>;
+  };
   pagina_simulado?: number;
   pagina_gabarito?: number;
 };

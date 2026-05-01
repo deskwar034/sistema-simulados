@@ -90,6 +90,22 @@ function normalizeComments(obj: UnknownRecord): Partial<Record<AlternativeKey, s
   return Object.keys(normalized).length > 0 ? normalized : undefined;
 }
 
+
+function normalizeGeneralExplanation(obj: UnknownRecord): string | undefined {
+  const fromCommented = isRecord(obj.gabarito_comentado)
+    ? toNonEmptyString(obj.gabarito_comentado.explicacao_geral)
+    : undefined;
+
+  return (
+    fromCommented ??
+    toNonEmptyString(obj.explicacao_geral) ??
+    toNonEmptyString(obj.explicacaoGeral) ??
+    toNonEmptyString(obj.generalExplanation) ??
+    toNonEmptyString(obj.explanation) ??
+    toNonEmptyString(obj.explicacao)
+  );
+}
+
 function parseCorrectAlternative(raw: unknown, questionId: number): AlternativeKey | null {
   if (typeof raw !== "string") {
     console.warn("[normalizeQuestions] Não foi possível detectar alternativa correta.", { questionId, raw });
@@ -130,6 +146,7 @@ export function normalizeQuestions(input: unknown): Question[] {
         alternativas,
         correta: correta ?? "A",
         comentarios: normalizeComments(item),
+        explicacaoGeral: normalizeGeneralExplanation(item),
         explicacao: toNonEmptyString(item.explicacao ?? item.explanation),
         pagina_simulado: typeof item.pagina_simulado === "number" ? item.pagina_simulado : undefined,
         pagina_gabarito: typeof item.pagina_gabarito === "number" ? item.pagina_gabarito : undefined,
