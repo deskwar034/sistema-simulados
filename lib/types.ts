@@ -1,11 +1,11 @@
-export type AlternativeKey = "A" | "B" | "C" | "D";
+export type AlternativeKey = "A" | "B" | "C" | "D" | "E";
 
 export type Question = {
   id: number;
   disciplina?: string;
   tema?: string;
   enunciado: string;
-  alternativas: Record<AlternativeKey, string>;
+  alternativas: Partial<Record<AlternativeKey, string>>;
   correta: AlternativeKey;
   comentarios?: Partial<Record<AlternativeKey, string>>;
   explicacao?: string;
