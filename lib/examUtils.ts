@@ -1,6 +1,6 @@
 import { AlternativeKey, Question } from "./types";
 
-const ALT_KEYS: AlternativeKey[] = ["A", "B", "C", "D"];
+const ALT_KEYS: AlternativeKey[] = ["A", "B", "C", "D", "E"];
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -42,13 +42,14 @@ function normalizeAlternativeValue(value: unknown): string {
   return "";
 }
 
-function normalizeAlternatives(raw: unknown): Record<AlternativeKey, string> {
+function normalizeAlternatives(raw: unknown): Partial<Record<AlternativeKey, string>> {
   const source = isRecord(raw) ? raw : {};
   return {
     A: normalizeAlternativeValue(source.A),
     B: normalizeAlternativeValue(source.B),
     C: normalizeAlternativeValue(source.C),
     D: normalizeAlternativeValue(source.D),
+    E: normalizeAlternativeValue(source.E),
   };
 }
 
@@ -109,7 +110,7 @@ function parseCorrectAlternative(raw: unknown, questionId: number): AlternativeK
     return null;
   }
   const upper = raw.toUpperCase();
-  const matched = upper.match(/[ABCD]/);
+  const matched = upper.match(/[ABCDE]/);
   if (!matched) {
     console.warn("[normalizeQuestions] Não foi possível detectar alternativa correta.", { questionId, raw });
     return null;
@@ -150,9 +151,30 @@ export function normalizeQuestions(input: unknown): Question[] { /* unchanged */
         pagina_gabarito: typeof item.pagina_gabarito === "number" ? item.pagina_gabarito : undefined,
       } as Question;
     })
-    .filter((q): q is Question => !!q && Number.isFinite(q.id) && q.enunciado.trim().length > 0 && ALT_KEYS.some((key) => q.alternativas[key].trim().length > 0));
+    .filter((q): q is Question => !!q && Number.isFinite(q.id) && q.enunciado.trim().length > 0 && ALT_KEYS.some((key) => (q.alternativas[key] || "").trim().length > 0));
   console.error("[normalizeQuestions] Resumo da normalização.", { inputType: Array.isArray(input) ? "array" : typeof input, rootKeys: isRecord(input) ? Object.keys(input) : [], detectedCountBeforeNormalization: sourceQuestions.length, normalizedCount: normalized.length });
   return normalized;
+}
+
+
+export function formatQuestionForCopy(question: Question, index: number): string {
+  const lines: string[] = [`Questão ${index + 1}`, ""];
+
+  if (question.disciplina) lines.push(`Disciplina: ${question.disciplina}`);
+  if (question.tema) lines.push(`Tema: ${question.tema}`);
+  if (question.disciplina || question.tema) lines.push("");
+
+  lines.push(question.enunciado.trim(), "");
+
+  const sortedAlternatives = Object.entries(question.alternativas)
+    .filter(([, value]) => typeof value === "string" && value.trim().length > 0)
+    .sort(([a], [b]) => a.localeCompare(b));
+
+  for (const [key, value] of sortedAlternatives) {
+    lines.push(`${key}) ${value}`);
+  }
+
+  return lines.join("\n");
 }
 
 export function calculateScore(questions: Question[], selectedAnswers: Record<number, AlternativeKey | null>, answeredQuestions: Record<number, boolean>) {
