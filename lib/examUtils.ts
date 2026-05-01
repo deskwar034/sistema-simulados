@@ -156,6 +156,27 @@ export function normalizeQuestions(input: unknown): Question[] { /* unchanged */
   return normalized;
 }
 
+
+export function formatQuestionForCopy(question: Question, index: number): string {
+  const lines: string[] = [`Questão ${index + 1}`, ""];
+
+  if (question.disciplina) lines.push(`Disciplina: ${question.disciplina}`);
+  if (question.tema) lines.push(`Tema: ${question.tema}`);
+  if (question.disciplina || question.tema) lines.push("");
+
+  lines.push(question.enunciado.trim(), "");
+
+  const sortedAlternatives = Object.entries(question.alternativas)
+    .filter(([, value]) => typeof value === "string" && value.trim().length > 0)
+    .sort(([a], [b]) => a.localeCompare(b));
+
+  for (const [key, value] of sortedAlternatives) {
+    lines.push(`${key}) ${value}`);
+  }
+
+  return lines.join("\n");
+}
+
 export function calculateScore(questions: Question[], selectedAnswers: Record<number, AlternativeKey | null>, answeredQuestions: Record<number, boolean>) {
   let correctCount = 0;
   let totalAnswered = 0;
