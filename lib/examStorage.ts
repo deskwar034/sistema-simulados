@@ -3,12 +3,27 @@ import { ExamState } from "./types";
 const KEY = "oab46_exam_state";
 export const DEFAULT_DURATION_MS = 5 * 60 * 60 * 1000;
 
+function normalizeLoadedState(parsed: ExamState): ExamState {
+  const startedAt = parsed.startedAt ?? Date.now();
+  const durationMs = parsed.durationMs ?? DEFAULT_DURATION_MS;
+  const fallbackRemaining = Math.floor(durationMs / 1000);
+  return {
+    ...parsed,
+    startedAt,
+    durationMs,
+    remainingSeconds: typeof parsed.remainingSeconds === "number" ? parsed.remainingSeconds : fallbackRemaining,
+    isTimerPaused: typeof parsed.isTimerPaused === "boolean" ? parsed.isTimerPaused : false,
+    lastTimerSyncAt: parsed.lastTimerSyncAt ?? startedAt,
+    startedAtISO: parsed.startedAtISO ?? new Date(startedAt).toISOString(),
+  };
+}
+
 export function loadState(): ExamState | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as ExamState;
+    return normalizeLoadedState(JSON.parse(raw) as ExamState);
   } catch {
     return null;
   }
@@ -36,5 +51,18 @@ export function createInitialState(totalQuestions: number): ExamState {
     answeredQuestions[i] = false;
     lockedQuestions[i] = false;
   }
-  return { currentQuestionIndex: 0, selectedAnswers, strikedAlternatives, answeredQuestions, lockedQuestions, startTimestamp: now, durationMs: DEFAULT_DURATION_MS, finished: false, startedAtISO: new Date(now).toISOString() };
+  return {
+    currentQuestionIndex: 0,
+    selectedAnswers,
+    strikedAlternatives,
+    answeredQuestions,
+    lockedQuestions,
+    durationMs: DEFAULT_DURATION_MS,
+    remainingSeconds: Math.floor(DEFAULT_DURATION_MS / 1000),
+    isTimerPaused: false,
+    lastTimerSyncAt: now,
+    startedAt: now,
+    finished: false,
+    startedAtISO: new Date(now).toISOString(),
+  };
 }
