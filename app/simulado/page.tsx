@@ -62,6 +62,46 @@ export default function SimuladoPage() {
     }));
   }, [state.currentQuestionIndex, state.finished, state.lockedQuestions, state.selectedAnswers]);
 
+  const goToPreviousQuestion = useCallback(() => setState((s) => ({ ...s, currentQuestionIndex: Math.max(0, s.currentQuestionIndex - 1) })), []);
+  const goToNextQuestion = useCallback(() => setState((s) => ({ ...s, currentQuestionIndex: Math.min(questions.length - 1, s.currentQuestionIndex + 1) })), [questions.length]);
+
+  const scrollToFeedback = useCallback(() => {
+    requestAnimationFrame(() => {
+      if (!feedbackRef.current) return;
+      const y = feedbackRef.current.getBoundingClientRect().top + window.scrollY - 24;
+      window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+    });
+  }, []);
+
+  const selectAlt = useCallback((a: AlternativeKey) => setState((s) => {
+    if (s.lockedQuestions[s.currentQuestionIndex] && !s.finished) return s;
+    const strikes = (s.strikedAlternatives[s.currentQuestionIndex] || []).filter((x) => x !== a);
+    return {
+      ...s,
+      selectedAnswers: { ...s.selectedAnswers, [s.currentQuestionIndex]: a },
+      strikedAlternatives: { ...s.strikedAlternatives, [s.currentQuestionIndex]: strikes },
+    };
+  }), []);
+
+  const toggleStrike = useCallback((a: AlternativeKey) => setState((s) => {
+    if (s.lockedQuestions[s.currentQuestionIndex] && !s.finished) return s;
+    const curr = s.strikedAlternatives[s.currentQuestionIndex] || [];
+    const next = curr.includes(a) ? curr.filter((x) => x !== a) : [...curr, a];
+    return { ...s, strikedAlternatives: { ...s.strikedAlternatives, [s.currentQuestionIndex]: next } };
+  }), []);
+
+  const answerCurrentQuestion = useCallback(() => {
+    let didAnswer = false;
+    setState((s) => {
+      if (s.lockedQuestions[s.currentQuestionIndex] || s.finished) return s;
+      const selected = s.selectedAnswers[s.currentQuestionIndex];
+      if (!selected) return s;
+      didAnswer = true;
+      return { ...s, answeredQuestions: { ...s.answeredQuestions, [s.currentQuestionIndex]: true }, lockedQuestions: { ...s.lockedQuestions, [s.currentQuestionIndex]: true } };
+    });
+    if (didAnswer) scrollToFeedback();
+  }, [scrollToFeedback]);
+
   useEffect(() => {
     if (!questions.length) {
       setError("Não foi possível carregar questões. Verifique se data/questions.json possui a chave questoes ou é um array de questões.");
