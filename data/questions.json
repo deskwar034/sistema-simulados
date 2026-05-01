@@ -1,0 +1,38 @@
+[
+  {
+    "id": 1,
+    "disciplina": "Direito Constitucional",
+    "tema": "Direitos Fundamentais",
+    "enunciado": "Sobre liberdade de expressão, assinale a alternativa correta.",
+    "alternativas": {
+      "A": "É absoluta e irrestrita.",
+      "B": "Pode sofrer responsabilização posterior por abusos.",
+      "C": "Depende de autorização prévia do Estado.",
+      "D": "Não se aplica a meios digitais."
+    },
+    "correta": "B",
+    "comentarios": {
+      "A": "Incorreta: nenhum direito fundamental é absoluto.",
+      "B": "Correta: veda-se censura prévia, com responsabilização posterior.",
+      "C": "Incorreta: a Constituição veda licença prévia para manifestação.",
+      "D": "Incorreta: aplica-se também ao ambiente digital."
+    }
+  },
+  {
+    "id": 2,
+    "disciplina": "Ética Profissional",
+    "tema": "Estatuto da Advocacia",
+    "enunciado": "Quanto aos impedimentos da advocacia, assinale a alternativa correta.",
+    "alternatives": {
+      "A": "Impedimento e incompatibilidade são sinônimos.",
+      "B": "Servidor público pode advogar contra a Fazenda que o remunera.",
+      "C": "Impedimento é proibição parcial para o exercício da advocacia.",
+      "D": "Incompatibilidade é proibição apenas perante determinado juízo."
+    },
+    "correctAnswer": "C",
+    "comments": {
+      "C": "Correta: o impedimento limita parcialmente a atuação profissional."
+    },
+    "explanation": "A incompatibilidade, em regra, impede totalmente o exercício da advocacia."
+  }
+]
